@@ -3,44 +3,24 @@ import { isConfigured, getUserByUsername, getTodayClicks, getUserTransactions } 
 
 export async function GET(request: NextRequest) {
   const username = request.nextUrl.searchParams.get('username');
-
-  if (!username) {
-    return NextResponse.json({ error: 'Username required' }, { status: 400 });
-  }
-
-  if (!isConfigured) {
-    return NextResponse.json({
-      profile: { username, total_clicks: 0, xp_balance: 0 },
-      todayClicks: 0,
-      transactions: []
-    });
-  }
-
+  if (!username) return NextResponse.json({ error: 'Username required' }, { status: 400 });
+  if (!isConfigured) return NextResponse.json({ profile: { username, total_clicks: 0, xp_balance: 0 }, todayClicks: 0, transactions: [] });
   try {
     const user = await getUserByUsername(username);
-
-    if (!user) {
-      return NextResponse.json({
-        profile: { username, total_clicks: 0, xp_balance: 0 },
-        todayClicks: 0,
-        transactions: []
-      });
-    }
-
+    if (!user) return NextResponse.json({ profile: { username, total_clicks: 0, xp_balance: 0 }, todayClicks: 0, transactions: [] });
     const todayClicks = await getTodayClicks(user.id);
     const transactions = await getUserTransactions(user.id);
+    return NextResponse.json({ profile: { username: user.username, total_clicks: user.total_clicks, xp_balance: user.xp_balance }, todayClicks, transactions });
+  } catch { return NextResponse.json({ error: 'Failed' }, { status: 500 }); }
+}
 
-    return NextResponse.json({
-      profile: {
-        username: user.username,
-        total_clicks: user.total_clicks,
-        xp_balance: user.xp_balance
-      },
-      todayClicks,
-      transactions
-    });
-  } catch (error) {
-    console.error('User API error:', error);
-    return NextResponse.json({ error: 'Failed to fetch user data' }, { status: 500 });
-  }
+export async function POST(request: NextRequest) {
+  const { username } = await request.json();
+  if (!username) return NextResponse.json({ error: 'Username required' }, { status: 400 });
+  try {
+    const user = await getUserByUsername(username);
+    if (!user) return NextResponse.json({ user: null });
+    const todayClicks = await getTodayClicks(user.id);
+    return NextResponse.json({ user: { ...user, today_clicks: todayClicks } });
+  } catch { return NextResponse.json({ error: 'Failed' }, { status: 500 }); }
 }
