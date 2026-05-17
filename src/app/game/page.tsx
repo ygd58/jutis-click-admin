@@ -22,6 +22,108 @@ function JutisMark({ size=32 }: {size?:number}) {
   );
 }
 
+
+function SwapTab({username, points, xp, setPoints, setXp, C}: any) {
+  const [amount, setAmount] = useState(100);
+  const [status, setStatus] = useState('');
+  const [loading, setLoading] = useState(false);
+  const xpRate = 100; // 100 click = 1 XP
+  const willGet = Math.floor(amount / xpRate);
+
+  const doSwap = async () => {
+    if (loading || points < amount) return;
+    setLoading(true);
+    setStatus('Swapping...');
+    try {
+      const r = await fetch('/api/swap', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ username, clicks: amount })
+      });
+      const d = await r.json();
+      if (d.success) {
+        setPoints(d.newClicks);
+        setXp(d.newXp);
+        setStatus(`✅ ${d.message}`);
+      } else {
+        setStatus(`❌ ${d.message}`);
+      }
+    } catch { setStatus('❌ Connection error'); }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{flex:1, padding:'0 20px'}}>
+      {/* Rate info */}
+      <div style={{background:C.card,border:`1px solid ${C.line}`,borderRadius:20,padding:20,marginBottom:16,textAlign:'center'}}>
+        <div style={{color:C.mute,fontSize:10,letterSpacing:'0.2em',marginBottom:8}}>SWAP RATE</div>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:16}}>
+          <div style={{textAlign:'center'}}>
+            <div style={{color:C.fg,fontSize:28,fontWeight:900}}>100</div>
+            <div style={{color:C.lime,fontSize:10,marginTop:2}}>CLICKS</div>
+          </div>
+          <div style={{color:C.mute,fontSize:24}}>→</div>
+          <div style={{textAlign:'center'}}>
+            <div style={{color:C.blue,fontSize:28,fontWeight:900}}>1</div>
+            <div style={{color:C.blue,fontSize:10,marginTop:2}}>XP</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Balances */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
+        <div style={{background:C.card,border:`1px solid ${C.lime}33`,borderRadius:16,padding:'14px 16px',textAlign:'center'}}>
+          <div style={{color:C.mute,fontSize:9,letterSpacing:'0.2em'}}>YOUR CLICKS</div>
+          <div style={{color:C.lime,fontSize:24,fontWeight:900,margin:'4px 0'}}>{points.toLocaleString()}</div>
+          <div style={{color:C.lime,fontSize:9}}>AVAILABLE</div>
+        </div>
+        <div style={{background:C.card,border:`1px solid ${C.blue}33`,borderRadius:16,padding:'14px 16px',textAlign:'center'}}>
+          <div style={{color:C.mute,fontSize:9,letterSpacing:'0.2em'}}>YOUR XP</div>
+          <div style={{color:C.blue,fontSize:24,fontWeight:900,margin:'4px 0'}}>{xp.toLocaleString()}</div>
+          <div style={{color:C.blue,fontSize:9}}>BALANCE</div>
+        </div>
+      </div>
+
+      {/* Amount selector */}
+      <div style={{background:C.card,border:`1px solid ${C.line}`,borderRadius:20,padding:20,marginBottom:16}}>
+        <div style={{color:C.mute,fontSize:10,letterSpacing:'0.2em',marginBottom:12}}>AMOUNT TO SWAP</div>
+        <input type="number" value={amount} onChange={e=>setAmount(Math.max(100,Math.min(points,parseInt(e.target.value)||100)))}
+          style={{width:'100%',padding:'14px 16px',background:C.bg,border:`1px solid ${C.line}`,borderRadius:12,color:C.fg,fontSize:18,fontWeight:900,textAlign:'center',outline:'none',boxSizing:'border-box'}}/>
+        <div style={{display:'flex',gap:8,marginTop:10}}>
+          {[100,500,1000,'MAX'].map(v=>(
+            <button key={v} onClick={()=>setAmount(v==='MAX'?points:Number(v))}
+              style={{flex:1,padding:'8px 4px',background:C.bg,border:`1px solid ${C.line}`,borderRadius:10,color:v===amount?C.lime:C.mute,fontSize:11,fontWeight:700,cursor:'pointer'}}>
+              {v}
+            </button>
+          ))}
+        </div>
+
+        {/* Preview */}
+        <div style={{marginTop:16,padding:'12px 16px',background:C.bg,borderRadius:12,border:`1px solid ${C.line}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span style={{color:C.mute,fontSize:11}}>You will receive</span>
+          <span style={{color:C.blue,fontWeight:900,fontSize:18}}>{willGet} XP</span>
+        </div>
+      </div>
+
+      {/* Swap button */}
+      <button onClick={doSwap} disabled={loading || points < amount || willGet <= 0}
+        style={{width:'100%',padding:'18px',background:points>=amount && willGet>0 ? C.lime : `${C.lime}33`,
+          color:points>=amount && willGet>0 ? C.ink : C.mute,
+          fontWeight:900,borderRadius:20,border:'none',cursor:points>=amount?'pointer':'not-allowed',
+          fontSize:14,letterSpacing:'0.3em',transition:'all 0.2s',
+          boxShadow:points>=amount ? `0 0 30px ${C.lime}30` : 'none'}}>
+        {loading ? 'SWAPPING...' : `SWAP ${amount} CLICKS → ${willGet} XP`}
+      </button>
+
+      {status && (
+        <div style={{marginTop:12,padding:'12px 16px',background:C.card,border:`1px solid ${C.line}`,borderRadius:12,textAlign:'center',color:status.includes('✅')?C.green:C.red,fontSize:12,fontWeight:700}}>
+          {status}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function GamePage() {
   const [username, setUsername] = useState('');
   const [input, setInput] = useState('');
@@ -264,6 +366,11 @@ export default function GamePage() {
         </div>
       )}
 
+      
+      {activeTab === 'swap' && (
+        <SwapTab username={username} points={points} xp={xp} setPoints={setPoints} setXp={setXp} C={C}/>
+      )}
+
       {activeTab === 'profile' && (
         <div style={{flex:1,padding:'0 20px'}}>
           <div style={{background:C.card,border:`1px solid ${C.line}`,borderRadius:20,padding:24,textAlign:'center',marginBottom:16}}>
@@ -312,3 +419,4 @@ export default function GamePage() {
     </div>
   );
 }
+// Bu satırı sil - sadece kontrol
