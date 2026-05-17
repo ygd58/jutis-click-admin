@@ -1,64 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isConfigured, getUserByUsername, swapClicksToXP, getSetting, getTodayClicks } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 
 export async function POST(request: NextRequest) {
-  if (!isConfigured) {
-    return NextResponse.json({
-      success: false,
-      message: 'Database not configured'
-    }, { status: 503 });
-  }
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
+  const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
     const { username, clicks } = await request.json();
+    if (!username || !clicks || clicks <= 0) return NextResponse.json({ success:false, message:'Username and clicks required' }, { status:400 });
 
-    if (!username || !clicks || clicks <= 0) {
-      return NextResponse.json({
-        success: false,
-        message: 'Username and clicks amount required'
-      }, { status: 400 });
-    }
+    // User bul
+    const { data: user } = await supabase.from('users').select('*').eq('username', username.trim()).single();
+    if (!user) return NextResponse.json({ success:false, message:'User not found' }, { status:404 });
+    if (user.status === 'banned') return NextResponse.json({ success:false, message:'User is banned' }, { status:403 });
 
-    const user = await getUserByUsername(username.trim());
+    // Yeterli click var mı?
+    if (user.total_clicks < clicks) return NextResponse.json({ success:false, message:`Not enough clicks (have ${user.total_clicks})` }, { status:400 });
 
-    if (!user) {
-      return NextResponse.json({
-        success: false,
-        message: 'User not found'
-      }, { status: 404 });
-    }
+    // XP rate
+    const { data: rateSetting } = await supabase.from('game_settings').select('value').eq('key','click_to_xp_rate').single();
+    const xpRate = parseInt(rateSetting?.value || '100');
+    const xpGained = Math.floor(clicks / xpRate);
 
-    if (user.status === 'banned') {
-      return NextResponse.json({
-        success: false,
-        message: 'User is banned'
-      }, { status: 403 });
-    }
+    if (xpGained <= 0) return NextResponse.json({ success:false, message:`Need at least ${xpRate} clicks to swap` }, { status:400 });
 
-    const todayClicks = await getTodayClicks(user.id);
+    // Swap yap - click azalt, XP artır
+    await supabase.from('users').update({
+      total_clicks: user.total_clicks - clicks,
+      xp_balance: (user.xp_balance || 0) + xpGained
+    }).eq('id', user.id);
 
-    if (todayClicks < clicks) {
-      return NextResponse.json({
-        success: false,
-        message: `Not enough clicks (have ${todayClicks})`
-      }, { status: 400 });
-    }
-
-    const xpRate = parseInt(await getSetting('click_to_xp_rate') || '100', 10);
-    const xpGained = await swapClicksToXP(user.id, clicks, xpRate);
+    // Transaction kaydet
+    await supabase.from('xp_transactions').insert({
+      user_id: user.id,
+      clicks_spent: clicks,
+      xp_received: xpGained
+    });
 
     return NextResponse.json({
       success: true,
       xpGained,
-      remainingClicks: todayClicks - clicks,
-      message: `Swapped ${clicks} clicks for ${xpGained} XP`
+      newClicks: user.total_clicks - clicks,
+      newXp: (user.xp_balance || 0) + xpGained,
+      message: `Swapped ${clicks} clicks → ${xpGained} XP`
     });
 
-  } catch (error) {
-    console.error('Swap API error:', error);
-    return NextResponse.json({
-      success: false,
-      message: 'Internal server error'
-    }, { status: 500 });
+  } catch (error: unknown) {
+    const err = error as Error;
+    return NextResponse.json({ success:false, message: err.message }, { status:500 });
   }
 }
