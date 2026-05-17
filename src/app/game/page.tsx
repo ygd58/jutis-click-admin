@@ -256,7 +256,7 @@ export default function GamePage() {
             </div>
             <div style={{textAlign:'right'}}>
               <div style={{color:C.lime,fontWeight:900,fontSize:16}}>{points}</div>
-              <div style={{color:C.mute,fontSize:10}}>CANT</div>
+              <div style={{color:C.mute,fontSize:10}}>CLICK</div>
             </div>
           </div>
 
@@ -320,7 +320,7 @@ export default function GamePage() {
           </div>
 
           <div style={{textAlign:'center',color:C.mute,fontSize:10,letterSpacing:'0.3em',paddingBottom:8}}>
-            {energy <= 0 ? 'ENERGY RECHARGING...' : 'TAP TO EARN CANT'}
+            {energy <= 0 ? 'ENERGY RECHARGING...' : 'TAP TO EARN CLICKS'}
           </div>
           {message && <div style={{textAlign:'center',color:C.red,fontSize:11,paddingBottom:8}}>{message}</div>}
 
@@ -342,7 +342,7 @@ export default function GamePage() {
           <div style={{background:C.card,border:`1px solid ${C.line}`,borderRadius:20,padding:20,marginBottom:16,textAlign:'center'}}>
             <div style={{color:C.mute,fontSize:10,letterSpacing:'0.2em',marginBottom:8}}>PORTFOLIO DELTA</div>
             <div style={{color:C.fg,fontSize:40,fontWeight:900}}>{points.toLocaleString()}</div>
-            <div style={{color:C.lime,fontSize:12,marginTop:4}}>CANT</div>
+            <div style={{color:C.lime,fontSize:12,marginTop:4}}>CLICK</div>
             <div style={{marginTop:12,padding:'6px 16px',borderRadius:999,background:`${C.lime}15`,border:`1px solid ${C.lime}30`,display:'inline-block'}}>
               <span style={{color:C.lime,fontSize:10,fontWeight:700}}>+12.4% 24H</span>
             </div>
@@ -354,7 +354,7 @@ export default function GamePage() {
               </button>
             ))}
           </div>
-          {[['CANT','Active Yield',points,'+8.1%',C.lime],['XP','Experience',xp,'Stable',C.blue]].map(([sym,sub,bal,chg,col]:any[])=>(
+          {[['CLICK','Active Yield',points,'+8.1%',C.lime],['XP','Experience',xp,'Stable',C.blue]].map(([sym,sub,bal,chg,col]:any[])=>(
             <div key={sym} style={{background:C.card,border:`1px solid ${C.line}`,borderRadius:16,padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
               <div style={{display:'flex',alignItems:'center',gap:12}}>
                 <div style={{width:40,height:40,borderRadius:'50%',background:`${col}22`,display:'flex',alignItems:'center',justifyContent:'center',color:col,fontWeight:900,fontSize:12}}>{String(sym).slice(0,2)}</div>
@@ -381,7 +381,7 @@ export default function GamePage() {
             <div style={{color:C.lime,fontSize:11,marginTop:4}}>LVL {level} · {rank}</div>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
-            {[['Total Clicks',points,'CANT'],['XP Balance',xp,'XP'],['Today',clicks,'Clicks'],['Daily Limit',dailyLimit,'Max']].map(([l,v,u])=>(
+            {[['Total Clicks',points,'CLICK'],['XP Balance',xp,'XP'],['Today',clicks,'Clicks'],['Daily Limit',dailyLimit,'Max']].map(([l,v,u])=>(
               <div key={String(l)} style={{background:C.card,border:`1px solid ${C.line}`,borderRadius:16,padding:'14px 16px',textAlign:'center'}}>
                 <div style={{color:C.mute,fontSize:9,letterSpacing:'0.2em'}}>{l}</div>
                 <div style={{color:C.fg,fontSize:22,fontWeight:900,margin:'4px 0'}}>{Number(v).toLocaleString()}</div>
