@@ -24,7 +24,7 @@ export default function AdminPage() {
     try {
       const [uRes, sRes] = await Promise.all([fetch('/api/admin/users'), fetch('/api/settings')]);
       const uData = await uRes.json(); const sData = await sRes.json();
-      if (Array.isArray(uData)) setUsers(uData);
+      const arr = Array.isArray(uData) ? uData : (uData.users || []); setUsers(arr);
       if (sData && typeof sData === 'object') setSettings(sData);
     } catch {}
   };
