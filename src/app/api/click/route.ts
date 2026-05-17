@@ -1,87 +1,69 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isConfigured, getUserByUsername, createUser, getSetting, getTodayClicks, recordClicks } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 
 export async function POST(request: NextRequest) {
-  if (!isConfigured) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  // Debug: env kontrolü
+  if (!supabaseUrl || !supabaseKey) {
     return NextResponse.json({
       success: false,
-      message: 'Database not configured'
+      message: 'Missing env vars',
+      debug: { hasUrl: !!supabaseUrl, hasKey: !!supabaseKey }
     }, { status: 503 });
   }
 
   try {
     const { username } = await request.json();
+    if (!username) return NextResponse.json({ success: false, message: 'Username required' }, { status: 400 });
 
-    if (!username || username.trim().length === 0) {
-      return NextResponse.json({
-        success: false,
-        message: 'Username required'
-      }, { status: 400 });
-    }
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const trimmedUsername = username.trim().slice(0, 30);
-
-    let user = await getUserByUsername(trimmedUsername);
-
+    // User bul veya oluştur
+    let { data: user } = await supabase.from('users').select('*').eq('username', username.trim()).single();
+    
     if (!user) {
-      user = await createUser(trimmedUsername);
+      const { data: newUser, error: createError } = await supabase
+        .from('users')
+        .insert({ username: username.trim(), total_clicks: 0, xp_balance: 0, status: 'active' })
+        .select().single();
+      if (createError) return NextResponse.json({ success: false, message: createError.message }, { status: 500 });
+      user = newUser;
     }
 
-    if (user.status === 'banned') {
-      return NextResponse.json({
-        success: false,
-        message: 'User is banned'
-      }, { status: 403 });
-    }
+    if (user.status === 'banned') return NextResponse.json({ success: false, message: 'User is banned' }, { status: 403 });
 
-    const maintenanceMode = await getSetting('maintenance_mode');
-    if (maintenanceMode === 'true') {
-      return NextResponse.json({
-        success: false,
-        message: 'Game is under maintenance'
-      }, { status: 503 });
-    }
+    // Settings
+    const { data: settings } = await supabase.from('game_settings').select('key, value');
+    const s: Record<string, string> = {};
+    settings?.forEach((r: {key: string, value: string}) => { s[r.key] = r.value; });
 
-    const dailyLimit = parseInt(await getSetting('daily_click_limit') || '1000', 10);
-    const cooldownMs = parseInt(await getSetting('click_cooldown_ms') || '0', 10);
-    const pointsPerClick = parseInt(await getSetting('points_per_click') || '1', 10);
+    if (s.maintenance_mode === 'true') return NextResponse.json({ success: false, message: 'Maintenance mode' }, { status: 503 });
 
-    const todayClicks = await getTodayClicks(user.id);
+    const dailyLimit = parseInt(s.daily_click_limit || '1000');
+    const pointsPerClick = parseInt(s.points_per_click || '1');
 
-    if (todayClicks >= dailyLimit) {
-      return NextResponse.json({
-        success: false,
-        message: `Daily limit reached (${todayClicks}/${dailyLimit})`
-      }, { status: 429 });
-    }
+    // Today clicks
+    const today = new Date(); today.setHours(0,0,0,0);
+    const { data: sessions } = await supabase.from('click_sessions').select('clicks').eq('user_id', user.id).gte('timestamp', today.toISOString());
+    const todayClicks = sessions?.reduce((sum: number, s: {clicks: number}) => sum + s.clicks, 0) || 0;
 
-    const lastClickKey = `last_click_${user.id}`;
-    const now = Date.now();
+    if (todayClicks >= dailyLimit) return NextResponse.json({ success: false, message: `Daily limit reached (${todayClicks}/${dailyLimit})` }, { status: 429 });
 
-    if (cooldownMs > 0) {
-      const lastClick = parseInt(request.headers.get(lastClickKey) || '0', 10);
-      if (now - lastClick < cooldownMs) {
-        return NextResponse.json({
-          success: false,
-          message: `Please wait ${cooldownMs}ms between clicks`
-        }, { status: 429 });
-      }
-    }
-
-    await recordClicks(user.id, 1);
+    // Record click
+    await supabase.from('click_sessions').insert({ user_id: user.id, clicks: 1, timestamp: new Date().toISOString() });
+    await supabase.from('users').update({ total_clicks: (user.total_clicks || 0) + 1 }).eq('id', user.id);
 
     return NextResponse.json({
       success: true,
       clicks: todayClicks + 1,
-      points: (todayClicks + 1) * pointsPerClick,
+      points: (user.total_clicks || 0) + 1,
       message: 'Click recorded'
     });
 
-  } catch (error) {
-    console.error('Click API error:', error);
-    return NextResponse.json({
-      success: false,
-      message: 'Internal server error'
-    }, { status: 500 });
+  } catch (error: unknown) {
+    const err = error as Error;
+    return NextResponse.json({ success: false, message: err.message || 'Unknown error' }, { status: 500 });
   }
 }
